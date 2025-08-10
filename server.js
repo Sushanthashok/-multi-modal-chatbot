@@ -1,16 +1,25 @@
 import express from "express";
 import dotenv from "dotenv";
 import OpenAI from "openai";
+import cors from "cors";
 
+// Load environment variables from .env
 dotenv.config();
 
 const app = express();
+
+// Enable CORS
+app.use(cors());
+
+// Middleware to parse JSON
 app.use(express.json());
 
+// Initialize OpenAI client
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
+// POST endpoint for chatbot
 app.post("/chat", async (req, res) => {
   try {
     const { message } = req.body;
@@ -27,10 +36,12 @@ app.post("/chat", async (req, res) => {
   }
 });
 
+// Test route
 app.get("/", (req, res) => {
   res.send("Server is running...");
 });
 
+// Start server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server listening on port ${PORT}`);
