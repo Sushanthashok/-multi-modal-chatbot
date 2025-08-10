@@ -1,48 +1,46 @@
-import express from "express";
-import dotenv from "dotenv";
-import OpenAI from "openai";
-import cors from "cors";
+// server.js
 
-// Load environment variables from .env
-dotenv.config();
+require('dotenv').config();
+const express = require('express');
+const cors = require('cors');
+const OpenAI = require('openai');
 
 const app = express();
+const port = process.env.PORT || 3000;
 
-// Enable CORS
+// Middleware
 app.use(cors());
-
-// Middleware to parse JSON
 app.use(express.json());
 
-// Initialize OpenAI client
+// OpenAI client
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-// POST endpoint for chatbot
-app.post("/chat", async (req, res) => {
+// Routes
+app.get('/', (req, res) => {
+  res.send('Server is running...');
+});
+
+app.post('/chat', async (req, res) => {
   try {
     const { message } = req.body;
 
     const response = await openai.chat.completions.create({
-      model: "gpt-3.5-turbo",
-      messages: [{ role: "user", content: message }],
+      model: 'gpt-3.5-turbo',
+      messages: [{ role: 'user', content: message }],
     });
 
     res.json({ reply: response.choices[0].message.content });
   } catch (error) {
-    console.error("Error:", error);
+    console.error('Error:', error);
     res.status(500).json({ error: error.message });
   }
 });
 
-// Test route
-app.get("/", (req, res) => {
-  res.send("Server is running...");
+// Start server
+app.listen(port, () => {
+  console.log(`Server listening on port ${port}`);
 });
 
-// Start server
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Server listening on port ${PORT}`);
-});
+
