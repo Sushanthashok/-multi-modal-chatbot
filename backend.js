@@ -3,7 +3,19 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { Configuration, OpenAIApi } from 'openai';
+import OpenAI from "openai";
+
+const openAi = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY
+});
+
+const response = await openai.chat.completions.create({
+  model: "gpt-3.5-turbo",
+  messages: [{ role: "user", content: "Hello!" }],
+});
+
+console.log(response.choices[0].message);
+
 
 dotenv.config();
 
