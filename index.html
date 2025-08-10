@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Multi-modal Chatbot with OpenAI</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 600px;
+      margin: 2rem auto;
+      padding: 1rem;
+      background: #f0f0f0;
+    }
+    #chat {
+      border: 1px solid #ccc;
+      background: white;
+      padding: 1rem;
+      height: 400px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+    .message {
+      max-width: 70%;
+      padding: 0.5rem 1rem;
+      border-radius: 10px;
+      line-height: 1.4;
+      word-wrap: break-word;
+    }
+    .user {
+      align-self: flex-end;
+      background: #4a90e2;
+      color: white;
+    }
+    .bot {
+      align-self: flex-start;
+      background: #e2e2e2;
+      color: #333;
+    }
+    img {
+      max-width: 100%;
+      border-radius: 10px;
+      margin-top: 0.5rem;
+    }
+    form {
+      margin-top: 1rem;
+      display: flex;
+      gap: 0.5rem;
+    }
+    input[type="text"] {
+      flex-grow: 1;
+      padding: 0.5rem 1rem;
+      font-size: 1rem;
+    }
+    button {
+      padding: 0.5rem 1rem;
+      font-size: 1rem;
+      cursor: pointer;
+    }
+    #loading {
+      font-style: italic;
+      color: #666;
+      margin-top: 0.5rem;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Multi-modal Chatbot with OpenAI</h1>
+
+  <div id="chat"></div>
+  <div id="loading" style="display:none;">Loading...</div>
+
+  <form id="chat-form">
+    <input type="text" id="user-input" placeholder="Type your message..." autocomplete="off" required />
+    <button type="submit">Send</button>
+  </form>
+
+  <script>
+    const chat = document.getElementById('chat');
+    const form = document.getElementById('chat-form');
+    const input = document.getElementById('user-input');
+    const loadingEl = document.getElementById('loading');
+
+    // Your OpenAI API key - DO NOT expose this in production client code!
+    const OPENAI_API_KEY = 'YOUR_OPENAI_API_KEY_HERE';
+
+    // Utility: Create message element
+    function createMessage(text, className, imageUrl = null) {
+      const messageEl = document.createElement('div');
+      messageEl.classList.add('message', className);
+      messageEl.textContent = text;
+
+      if (imageUrl) {
+        const img = document.createElement('img');
+        img.src = imageUrl;
+        img.alt = 'Illustration';
+        messageEl.appendChild(img);
+      }
+
+      return messageEl;
+    }
+
+    // Speak text using Web Speech API
+    function speakText(text) {
+      if (!('speechSynthesis' in window)) return;
+
+      const utterance = new SpeechSynthesisUtterance(text);
+      window.speechSynthesis.speak(utterance);
+    }
+
+    // Append message to chat and scroll
+    function appendMessage(text, className, imageUrl = null) {
+      const messageEl = createMessage(text, className, imageUrl);
+      chat.appendChild(messageEl);
+      chat.scrollTop = chat.scrollHeight;
+    }
+
+    // Call OpenAI Chat Completion API for text response
+    async function getChatResponse(userInput) {
+      const url = 'https://api.openai.com/v1/chat/completions';
+      const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${OPENAI_API_KEY}`
+      };
+      const body = {
+        model: 'gpt-4', // or 'gpt-3.5-turbo'
+        messages: [
+          { role: 'system', content: 'You are a helpful assistant.' },
+          { role: 'user', content: userInput }
+        ],
+        max_tokens: 150,
+        temperature: 0.7
+      };
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body)
+      });
+
+      if (!response.ok) {
+        throw new Error(`OpenAI API error: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      return data.choices[0].message.content.trim();
+    }
+
+    // Call OpenAI Image Generation API (DALL·E)
+    async function generateImage(prompt) {
+      const url = 'https://api.openai.com/v1/images/generations';
+      const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${OPENAI_API_KEY}`
+      };
+      const body = {
+        prompt,
+        n: 1,
+        size: '256x256'
+      };
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body)
+      });
+
+      if (!response.ok) {
+        throw new Error(`OpenAI Image API error: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      return data.data[0].url;
+    }
+
+    // Main handler to process user input and generate multi-modal response
+    async function handleUserInput(userText) {
+      try {
+        loadingEl.style.display = 'block';
+
+        // Get text response from OpenAI Chat API
+        const botText = await getChatResponse(userText);
+
+        // Generate image based on user input or bot response (choose either)
+        // Here we use user input as prompt for image generation
+        const imageUrl = await generateImage(userText);
+
+        // Append bot message with text and image
+        appendMessage(botText, 'bot', imageUrl);
+
+        // Speak the bot response
+        speakText(botText);
+      } catch (error) {
+        appendMessage('Sorry, there was an error processing your request.', 'bot');
+        console.error(error);
+      } finally {
+        loadingEl.style.display = 'none';
+      }
+    }
+
+    form.addEventListener('submit', e => {
+      e.preventDefault();
+      const userText = input.value.trim();
+      if (!userText) return;
+
+      // Show user message
+      appendMessage(userText, 'user');
+      input.value = '';
+
+      // Process bot response asynchronously
+      handleUserInput(userText);
+    });
+  </script>
+
+</body>
+</html>
+    "recommendations": [
+        "sybrix-labs.sybrix-oasis"
+    ]
+}

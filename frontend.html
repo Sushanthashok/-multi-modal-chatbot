@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Multi-modal Chatbot</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <h1>Multi-modal Chatbot</h1>
+
+  <div id="chat"></div>
+  <div id="loading" style="display:none;">Bot is typing...</div>
+
+  <form id="chat-form">
+    <input type="text" id="user-input" placeholder="Type your message..." autocomplete="off" required />
+    <button type="button" id="mic-btn" title="Speak">🎤</button>
+    <button type="submit">Send</button>
+  </form>
+
+  <script>
+    const chat = document.getElementById('chat');
+    const form = document.getElementById('chat-form');
+    const input = document.getElementById('user-input');
+    const loadingEl = document.getElementById('loading');
+    const micBtn = document.getElementById('mic-btn');
+
+    let isLoading = false;
+    let recognition;
+    let isListening = false;
+
+    // Backend URL (same origin)
+    const BACKEND_URL = '';
+
+    // Create message element
+    function createMessage(text, className, imageUrl = null) {
+      const messageEl = document.createElement('div');
+      messageEl.classList.add('message', className);
+      messageEl.textContent = text;
+
+      if (imageUrl) {
+        const img = document.createElement('img');
+        img.src = imageUrl;
+        img.alt = 'Illustration';
+        messageEl.appendChild(img);
+      }
+
+      return messageEl;
+    }
+
+    // Append message and scroll smooth
+    function appendMessage(text, className, imageUrl = null, isTyping = false) {
+      const messageEl = createMessage(text, className, imageUrl);
+      if (isTyping) messageEl.classList.add('typing');
+      chat.appendChild(messageEl);
+      chat.scrollTo({ top: chat.scrollHeight, behavior: 'smooth' });
+      return messageEl;
+    }
+
+    // Speak text with Web Speech API
+    function speakText(text) {
+      if (!('speechSynthesis' in window)) return;
+      const utterance = new SpeechSynthesisUtterance(text);
+      window.speechSynthesis.speak(utterance);
+    }
+
+    // Enable/disable input and buttons during loading
+    function setLoading(state) {
+      isLoading = state;
+      loadingEl.style.display = state ? 'block' : 'none';
+      input.disabled = state;
+      micBtn.disabled = state || !recognition;
+      form.querySelector('button[type="submit"]').disabled = state;
+    }
+
+    // Call backend chat API
+    async function getChatResponse(userInput) {
+      const res = await fetch(`${BACKEND_URL}/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: userInput }),
+      });
+      if (!res.ok) throw new Error('Chat API error');
+      const data = await res.json();
+      return data.text;
+    }
+
+    // Call backend image API
+    async function generateImage(prompt) {
+      const res = await fetch(`${BACKEND_URL}/image`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt }),
+      });
+      if (!res.ok) throw new Error('Image API error');
+      const data = await res.json();
+      return data.url;
+    }
+
+    // Handle user input and bot response
+    async function handleUserInput(userText) {
+      try {
+        setLoading(true);
+        // Show typing indicator
+        const typingEl = appendMessage('Bot is typing...', 'bot', null, true);
+
+        const botText = await getChatResponse(userText);
+        const imageUrl = await generateImage(userText);
+
+        // Remove typing indicator
+        typingEl.remove();
+
+        // Show bot message with image
+        appendMessage(botText, 'bot', imageUrl);
+
+        speakText(botText);
+      } catch (error) {
+        appendMessage('Sorry, there was an error processing your request.', 'bot');
+        console.error(error);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    // Form submit handler
+    form.addEventListener('submit', e => {
+      e.preventDefault();
+      if (isLoading) return;
+
+      const userText = input.value.trim();
+      if (!userText) return;
+
+      appendMessage(userText, 'user');
+      input.value = '';
+
+      handleUserInput(userText);
+    });
+
+    // Initialize speech recognition
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      recognition = new SpeechRecognition();
+      recognition.lang = 'en-US';
+      recognition.interimResults = false;
+      recognition.maxAlternatives = 1;
+
+      recognition.addEventListener('start', () => {
+        isListening = true;
+        micBtn.textContent = '🛑';
+        micBtn.title = 'Stop recording';
+      });
+
+      recognition.addEventListener('end', () => {
+        isListening = false;
+        micBtn.textContent = '🎤';
+        micBtn.title = 'Speak';
+      });
+
+      recognition.addEventListener('result', (event) => {
+        const transcript = event.results[0][0].transcript;
+        input.value = transcript;
+        input.focus();
+        // Uncomment to auto-submit after speech:
+        // form.requestSubmit();
+      });
+    } else {
+      micBtn.disabled = true;
+      micBtn.title = 'Speech recognition not supported';
+    }
+
+    micBtn.addEventListener('click', () => {
+      if (!recognition) return;
+
+      if (isListening) {
+        recognition.stop();
+      } else {
+        recognition.start();
+      }
+    });
+  </script>
+
+</body>
+</html>
